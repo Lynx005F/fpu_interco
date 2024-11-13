@@ -145,36 +145,47 @@ module fpnew_wrapper
           PipeConfig: fpnew_pkg::BEFORE
         };
 
+        localparam fpnew_pkg::divsqrt_unit_t DIVISION_UNIT = fpnew_pkg::THMULTI;
+        
+        localparam fpnew_pkg::redundancy_features_t REDUNDANCY_FEATURES = '{
+            TripplicateRepetition: 1,
+            RedundancyType:        fpnew_pkg::TTR_FAST
+        };
+
         //---------------
-        // FPU instance
+        // FPU instance 
         //---------------
         fpnew_top #(
-          .Features       ( FPU_FEATURES         ),
-          .Implementation ( FPU_IMPLEMENTATION   ),
-          .TagType        ( logic [ID_WIDTH-1:0] )
+          .Features                 ( FPU_FEATURES             ), 
+          .Implementation           ( FPU_IMPLEMENTATION       ),
+          .RedundancyFeatures       ( REDUNDANCY_FEATURES      ),
+          .DivSqrtSel               ( DIVISION_UNIT            ),
+          .TagType                  ( logic [ID_WIDTH-1:0]     )
         ) i_fpnew (
-          .clk_i          ( clk                                  ),
-          .rst_ni         ( rst_n                                ),
-          .hart_id_i      ( '0                                   ),
-          .operands_i     ( apu_operands_i                       ),
-          .rnd_mode_i     ( fpnew_pkg::roundmode_e'(fp_rnd_mode) ),
-          .op_i           ( fpnew_pkg::operation_e'(fpu_op)      ),
-          .op_mod_i       ( fpu_op_mod                           ),
-          .src_fmt_i      ( fpnew_pkg::fp_format_e'(src_fmt)     ),
-          .dst_fmt_i      ( fpnew_pkg::fp_format_e'(dst_fmt)     ),
-          .int_fmt_i      ( fpnew_pkg::int_format_e'(int_fmt)    ),
-          .vectorial_op_i ( fpu_vec_op                           ),
-          .tag_i          ( apu_ID_i                             ),
-          .simd_mask_i    ( '1                                   ),
-          .in_valid_i     ( apu_req_i                            ),
-          .in_ready_o     ( apu_gnt_o                            ),
-          .flush_i        ( 1'b0                                 ),
-          .result_o       ( apu_rdata_o                          ),
-          .status_o       ( apu_rflags_o                         ),
-          .tag_o          ( apu_rID_o                            ),
-          .out_valid_o    ( apu_rvalid_o                         ),
-          .out_ready_i    ( 1'b1                                 ),
-          .busy_o         ( /* unused */                         )
+          .clk_i               ( clk                                  ),
+          .rst_ni              ( rst_n                                ),
+          .hart_id_i           ( '0                                   ),
+          .redundancy_enable_i ('0                                    ),
+          .operands_i          ( apu_operands_i                       ),
+          .rnd_mode_i          ( fpnew_pkg::roundmode_e'(fp_rnd_mode) ),
+          .op_i                ( fpnew_pkg::operation_e'(fpu_op)      ),
+          .op_mod_i            ( fpu_op_mod                           ),
+          .src_fmt_i           ( fpnew_pkg::fp_format_e'(src_fmt)     ),
+          .dst_fmt_i           ( fpnew_pkg::fp_format_e'(dst_fmt)     ),
+          .int_fmt_i           ( fpnew_pkg::int_format_e'(int_fmt)    ),
+          .vectorial_op_i      ( fpu_vec_op                           ),
+          .tag_i               ( apu_ID_i                             ),
+          .simd_mask_i         ( '1                                   ),
+          .in_valid_i          ( apu_req_i                            ),
+          .in_ready_o          ( apu_gnt_o                            ),
+          .flush_i             ( 1'b0                                 ),
+          .result_o            ( apu_rdata_o                          ),
+          .status_o            ( apu_rflags_o                         ),
+          .tag_o               ( apu_rID_o                            ),
+          .out_valid_o         ( apu_rvalid_o                         ),
+          .out_ready_i         ( 1'b1                                 ),
+          .busy_o              ( /* unused */                         ),
+          .fault_detected_o    ( /* unused */                         )
         );
 
 

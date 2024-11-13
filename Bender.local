@@ -1,0 +1,2 @@
+overrides:
+  fpnew: { git: "https://github.com/Lynx005F/cvfpu.git", rev: 8cd7e5066f72d9fafff50dc8ab58cc0cd29b88ce }

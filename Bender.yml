@@ -7,7 +7,7 @@ package:
     - "Francesco Conti <f.conti@unibo.it>"
 
 dependencies:
-  fpnew: { git: "https://github.com/pulp-platform/cvfpu.git", rev: pulp-v0.1.3 }
+  fpnew: { git: "https://github.com/Lynx005F/cvfpu.git", rev: 8cd7e5066f72d9fafff50dc8ab58cc0cd29b88ce }
   riscv: { git: "git@github.com:AlSaqr-platform/riscv_nn.git", rev: a1dcae35edae6092ddbf92c424690cb903b678d5 } # branch: yt/hmr
 
 sources:
