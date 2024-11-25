@@ -77,7 +77,9 @@ module shared_fpu_cluster
    parameter USE_FPU_OPT_ALLOC   = "FALSE", // IF NB_APUS  == 1 --> SET to FALSE
    parameter USE_FPNEW_OPT_ALLOC = "TRUE",  // IF NB_FPNEW == 1 --> SET to FALSE
 
-   parameter FPNEW_INTECO_TYPE = "SINGLE_INTERCO" // CUSTOM | SINGLE_INTERCO
+   parameter FPNEW_INTECO_TYPE = "SINGLE_INTERCO", // CUSTOM | SINGLE_INTERCO
+
+   parameter FPNEW_REDUNDANCY = fpnew_pkg::NONE
 )
 (
    input logic                                                        clk,
@@ -98,7 +100,11 @@ module shared_fpu_cluster
    input  logic [NB_CORES-1:0]                                        core_slave_rready_i,
    output logic [NB_CORES-1:0]                                        core_slave_rvalid_o,
    output logic [NB_CORES-1:0][CORE_DATA_WIDTH-1:0]                   core_slave_rdata_o,
-   output logic [NB_CORES-1:0][CORE_USFLAGS_CPU-1:0]                  core_slave_rflags_o
+   output logic [NB_CORES-1:0][CORE_USFLAGS_CPU-1:0]                  core_slave_rflags_o,
+
+   // Redundancy Connections
+   input  logic                                                       redundancy_enable_i,
+   output logic                                                       fault_detected_o
 );
 
    localparam APU_ID_WIDTH   = NB_CORES;
@@ -178,6 +184,9 @@ module shared_fpu_cluster
 
    logic [NB_APUS-1:0]               clk_fpu;
    logic [NB_FPNEW-1:0]              clk_fpnew;
+
+   // signals used to collect fault data
+   logic [NB_FPNEW-1:0]              s_fpnew_fault_detected;
 
   genvar i;
   generate
@@ -972,7 +981,8 @@ endgenerate
            .C_FPNEW_IFMTBITS ( C_FPNEW_IFMTBITS    ),
            .C_ROUND_BITS     ( C_ROUND_BITS        ),
            .C_FPNEW_OPBITS   ( C_FPNEW_OPBITS      ),
-           .FP_DIVSQRT       ( 0                   )
+           .FP_DIVSQRT       ( 0                   ),
+           .FP_REDUNDANCY    ( FPNEW_REDUNDANCY    )
          )
          i_fpnew_wrapper
          (
@@ -995,7 +1005,11 @@ endgenerate
             .apu_rvalid_o   ( s_fpnew_slave_rvalid   [j] ),
             .apu_rdata_o    ( s_fpnew_slave_rdata    [j] ),
             .apu_rflags_o   ( s_fpnew_slave_rflags   [j] ),
-            .apu_rID_o      ( s_fpnew_slave_rID      [j] )
+            .apu_rID_o      ( s_fpnew_slave_rID      [j] ),
+
+            // redundancy signals and fault collection
+            .redundancy_enable_i ( redundancy_enable_i        ),
+            .fault_detected_o    ( s_fpnew_fault_detected [j] )
          );
       end
 
@@ -1028,6 +1042,7 @@ endgenerate
        .fpnew_clock_gate_enable_o     ( s_fpnew_clock_gate_enable )
     );
 
+    assign fault_detected_o = |s_fpnew_fault_detected;
 
 generate
 

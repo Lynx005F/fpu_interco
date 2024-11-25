@@ -57,7 +57,8 @@ module fpnew_wrapper
   parameter C_FPNEW_IFMTBITS = fpnew_pkg::INT_FORMAT_BITS,
   parameter C_ROUND_BITS     = 3,
   parameter C_FPNEW_OPBITS   = fpnew_pkg::OP_BITS,
-  parameter FP_DIVSQRT       = 0
+  parameter FP_DIVSQRT       = 0,
+  parameter FP_REDUNDANCY    = fpnew_pkg::NONE
 )
 (
    // Clock and Reset
@@ -79,7 +80,11 @@ module fpnew_wrapper
    output logic                                   apu_rvalid_o,
    output logic [DATA_WIDTH-1:0]                  apu_rdata_o,
    output logic [FLAGS_OUT_WIDTH-1:0]             apu_rflags_o,
-   output logic [ID_WIDTH-1:0]                    apu_rID_o // not used
+   output logic [ID_WIDTH-1:0]                    apu_rID_o, // not used
+
+   // redundancy connections
+   input  logic                                   redundancy_enable_i,
+   output logic                                   fault_detected_o
 );
 
    `ifdef DUMMY_FPNEW
@@ -149,7 +154,7 @@ module fpnew_wrapper
         
         localparam fpnew_pkg::redundancy_features_t REDUNDANCY_FEATURES = '{
             TripplicateRepetition: 1,
-            RedundancyType:        fpnew_pkg::TTR_FAST
+            RedundancyType:        FP_REDUNDANCY
         };
 
         //---------------
@@ -165,7 +170,7 @@ module fpnew_wrapper
           .clk_i               ( clk                                  ),
           .rst_ni              ( rst_n                                ),
           .hart_id_i           ( '0                                   ),
-          .redundancy_enable_i ('0                                    ),
+          .redundancy_enable_i ( redundancy_enable_i                  ),
           .operands_i          ( apu_operands_i                       ),
           .rnd_mode_i          ( fpnew_pkg::roundmode_e'(fp_rnd_mode) ),
           .op_i                ( fpnew_pkg::operation_e'(fpu_op)      ),
@@ -185,7 +190,7 @@ module fpnew_wrapper
           .out_valid_o         ( apu_rvalid_o                         ),
           .out_ready_i         ( 1'b1                                 ),
           .busy_o              ( /* unused */                         ),
-          .fault_detected_o    ( /* unused */                         )
+          .fault_detected_o    ( fault_detected_o                     )
         );
 
 
