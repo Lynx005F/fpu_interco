@@ -77,9 +77,7 @@ module shared_fpu_cluster
    parameter USE_FPU_OPT_ALLOC   = "FALSE", // IF NB_APUS  == 1 --> SET to FALSE
    parameter USE_FPNEW_OPT_ALLOC = "TRUE",  // IF NB_FPNEW == 1 --> SET to FALSE
 
-   parameter FPNEW_INTECO_TYPE = "SINGLE_INTERCO", // CUSTOM | SINGLE_INTERCO
-
-   parameter FPNEW_REDUNDANCY = fpnew_pkg::NONE
+   parameter FPNEW_INTECO_TYPE = "SINGLE_INTERCO" // CUSTOM | SINGLE_INTERCO
 )
 (
    input logic                                                        clk,
@@ -177,6 +175,26 @@ module shared_fpu_cluster
    logic [NB_FPNEW-1:0][CORE_DATA_WIDTH-1:0]                     s_fpnew_slave_rdata;
    logic [NB_FPNEW-1:0][FPNEW_USFLAGS_CPU-1:0]                   s_fpnew_slave_rflags;
    logic [NB_FPNEW-1:0][FPNEW_ID_WIDTH-1:0]                      s_fpnew_slave_rID;
+
+
+
+   // FPNEW Side: Copy of Signals in Redundant Mode
+   logic [NB_FPNEW-1:0]                                          s_fpnew_slave_req_copy;
+   logic [NB_FPNEW-1:0]                                          s_fpnew_slave_gnt_copy;
+   logic [NB_FPNEW-1:0][FPNEW_ID_WIDTH-1:0]                      s_fpnew_slave_ID_copy;
+
+   // request channel
+   logic [NB_FPNEW-1:0][NB_FPNEW_ARGS-1:0][CORE_DATA_WIDTH-1:0]  s_fpnew_slave_operands_copy;
+   logic [NB_FPNEW-1:0][FPNEW_OPCODE_WIDTH-1:0]                  s_fpnew_slave_op_copy;
+   logic [NB_FPNEW-1:0][FPNEW_DSFLAGS_CPU-1:0]                   s_fpnew_slave_flags_copy;
+
+   // response channel
+   logic [NB_FPNEW-1:0]                                          s_fpnew_slave_rready_copy;
+   logic [NB_FPNEW-1:0]                                          s_fpnew_slave_rvalid_copy;
+   logic [NB_FPNEW-1:0][CORE_DATA_WIDTH-1:0]                     s_fpnew_slave_rdata_copy;
+   logic [NB_FPNEW-1:0][FPNEW_USFLAGS_CPU-1:0]                   s_fpnew_slave_rflags_copy;
+   logic [NB_FPNEW-1:0][FPNEW_ID_WIDTH-1:0]                      s_fpnew_slave_rID_copy;
+
 
    // signals used to clock gate the FPNEW/FPUs
    logic [NB_APUS-1:0]               s_fpu_clock_gate_enable;
@@ -965,6 +983,72 @@ endgenerate
          );
       end
 
+      always_comb begin
+          for (int i = 0; i < NB_FPNEW / 2; i++) begin: gen_direct_assigns
+              // Direct passthrough in non-redundant mode
+              // Outgoing signals
+              s_fpnew_slave_req_copy      [i] = s_fpnew_slave_req      [i];
+              s_fpnew_slave_ID_copy       [i] = s_fpnew_slave_ID       [i];
+              s_fpnew_slave_operands_copy [i] = s_fpnew_slave_operands [i];
+              s_fpnew_slave_op_copy       [i] = s_fpnew_slave_op       [i];
+              s_fpnew_slave_flags_copy    [i] = s_fpnew_slave_flags    [i];
+              s_fpnew_slave_rready_copy   [i] = s_fpnew_slave_rready   [i];
+
+              // Incomming Signals
+              s_fpnew_slave_gnt    [i] = s_fpnew_slave_gnt_copy    [i];
+              s_fpnew_slave_rvalid [i] = s_fpnew_slave_rvalid_copy [i];
+              s_fpnew_slave_rdata  [i] = s_fpnew_slave_rdata_copy  [i];
+              s_fpnew_slave_rflags [i] = s_fpnew_slave_rflags_copy [i];
+              s_fpnew_slave_rID    [i] = s_fpnew_slave_rID_copy    [i];
+          end
+
+          for (int i = 0; i < NB_FPNEW / 2; i++) begin: gen_slave_assigns
+              logic gnt_same, rvalid_same, rdata_same, rflags_same, rready_same;
+
+              if (redundancy_enable_i) begin: gen_redundancy_comparison
+                  // Outgoing signals
+                  s_fpnew_slave_req_copy      [NB_FPNEW / 2 + i] = s_fpnew_slave_req_copy      [i];
+                  s_fpnew_slave_ID_copy       [NB_FPNEW / 2 + i] = s_fpnew_slave_ID_copy       [i];
+                  s_fpnew_slave_operands_copy [NB_FPNEW / 2 + i] = s_fpnew_slave_operands_copy [i];
+                  s_fpnew_slave_op_copy       [NB_FPNEW / 2 + i] = s_fpnew_slave_op_copy       [i];
+                  s_fpnew_slave_flags_copy    [NB_FPNEW / 2 + i] = s_fpnew_slave_flags_copy    [i];
+                  s_fpnew_slave_rready_copy   [NB_FPNEW / 2 + i] = s_fpnew_slave_rready_copy   [i];
+
+                  // Incoming signals comparison
+                  gnt_same    = s_fpnew_slave_gnt_copy    [i] == s_fpnew_slave_gnt_copy    [NB_FPNEW / 2 + i];
+                  rvalid_same = s_fpnew_slave_rvalid_copy [i] == s_fpnew_slave_rvalid_copy [NB_FPNEW / 2 + i];
+                  rdata_same  = s_fpnew_slave_rdata_copy  [i] == s_fpnew_slave_rdata_copy  [NB_FPNEW / 2 + i];
+                  rflags_same = s_fpnew_slave_rflags_copy [i] == s_fpnew_slave_rflags_copy [NB_FPNEW / 2 + i];
+                  rready_same = s_fpnew_slave_rID_copy    [i] == s_fpnew_slave_rID_copy    [NB_FPNEW / 2 + i];
+
+                  // Set upstream signals in a way so the FPUs never get used
+                  s_fpnew_slave_gnt    [NB_FPNEW / 2 + i] = '0;
+                  s_fpnew_slave_rvalid [NB_FPNEW / 2 + i] = '0;
+                  s_fpnew_slave_rdata  [NB_FPNEW / 2 + i] = '0;
+                  s_fpnew_slave_rflags [NB_FPNEW / 2 + i] = '0;
+                  s_fpnew_slave_rID    [NB_FPNEW / 2 + i] = '0;
+
+                  s_fpnew_fault_detected[i] = ~gnt_same | ~rvalid_same | ~rdata_same | ~rflags_same | ~rready_same;
+              end else begin: gen_no_redundancy_passtrough
+                  // Direct passthrough in non-redundant mode
+                  // Outgoing signals
+                  s_fpnew_slave_req_copy      [NB_FPNEW / 2 + i] = s_fpnew_slave_req      [NB_FPNEW / 2 + i];
+                  s_fpnew_slave_ID_copy       [NB_FPNEW / 2 + i] = s_fpnew_slave_ID       [NB_FPNEW / 2 + i];
+                  s_fpnew_slave_operands_copy [NB_FPNEW / 2 + i] = s_fpnew_slave_operands [NB_FPNEW / 2 + i];
+                  s_fpnew_slave_op_copy       [NB_FPNEW / 2 + i] = s_fpnew_slave_op       [NB_FPNEW / 2 + i];
+                  s_fpnew_slave_flags_copy    [NB_FPNEW / 2 + i] = s_fpnew_slave_flags    [NB_FPNEW / 2 + i];
+                  s_fpnew_slave_rready_copy   [NB_FPNEW / 2 + i] = s_fpnew_slave_rready   [NB_FPNEW / 2 + i];
+
+                  // Incomming Signals
+                  s_fpnew_slave_gnt    [NB_FPNEW / 2 + i] = s_fpnew_slave_gnt_copy    [NB_FPNEW / 2 + i];
+                  s_fpnew_slave_rvalid [NB_FPNEW / 2 + i] = s_fpnew_slave_rvalid_copy [NB_FPNEW / 2 + i];
+                  s_fpnew_slave_rdata  [NB_FPNEW / 2 + i] = s_fpnew_slave_rdata_copy  [NB_FPNEW / 2 + i];
+                  s_fpnew_slave_rflags [NB_FPNEW / 2 + i] = s_fpnew_slave_rflags_copy [NB_FPNEW / 2 + i];
+                  s_fpnew_slave_rID    [NB_FPNEW / 2 + i] = s_fpnew_slave_rID_copy    [NB_FPNEW / 2 + i];
+              end
+          end
+      end
+
 
 
       for(j=0;j<NB_FPNEW;j++)
@@ -981,8 +1065,7 @@ endgenerate
            .C_FPNEW_IFMTBITS ( C_FPNEW_IFMTBITS    ),
            .C_ROUND_BITS     ( C_ROUND_BITS        ),
            .C_FPNEW_OPBITS   ( C_FPNEW_OPBITS      ),
-           .FP_DIVSQRT       ( 0                   ),
-           .FP_REDUNDANCY    ( FPNEW_REDUNDANCY    )
+           .FP_DIVSQRT       ( 0                   )
          )
          i_fpnew_wrapper
          (
@@ -991,25 +1074,25 @@ endgenerate
             .rst_n          ( rst_n                ),
 
             // APU Side: Master port
-            .apu_req_i      ( s_fpnew_slave_req      [j] ),
-            .apu_gnt_o      ( s_fpnew_slave_gnt      [j] ),
-            .apu_ID_i       ( s_fpnew_slave_ID       [j] ),
+            .apu_req_i      ( s_fpnew_slave_req_copy      [j] ),
+            .apu_gnt_o      ( s_fpnew_slave_gnt_copy      [j] ),
+            .apu_ID_i       ( s_fpnew_slave_ID_copy       [j] ),
 
             // request channel
-            .apu_operands_i ( s_fpnew_slave_operands [j] ),
-            .apu_op_i       ( s_fpnew_slave_op       [j] ),
-            .apu_flags_i    ( s_fpnew_slave_flags    [j] ),
+            .apu_operands_i ( s_fpnew_slave_operands_copy [j] ),
+            .apu_op_i       ( s_fpnew_slave_op_copy       [j] ),
+            .apu_flags_i    ( s_fpnew_slave_flags_copy    [j] ),
 
             // response channel
-            .apu_rready_i   ( s_fpnew_slave_rready   [j] ), // not used
-            .apu_rvalid_o   ( s_fpnew_slave_rvalid   [j] ),
-            .apu_rdata_o    ( s_fpnew_slave_rdata    [j] ),
-            .apu_rflags_o   ( s_fpnew_slave_rflags   [j] ),
-            .apu_rID_o      ( s_fpnew_slave_rID      [j] ),
+            .apu_rready_i   ( s_fpnew_slave_rready_copy   [j] ), // not used
+            .apu_rvalid_o   ( s_fpnew_slave_rvalid_copy   [j] ),
+            .apu_rdata_o    ( s_fpnew_slave_rdata_copy    [j] ),
+            .apu_rflags_o   ( s_fpnew_slave_rflags_copy   [j] ),
+            .apu_rID_o      ( s_fpnew_slave_rID_copy      [j] ),
 
             // redundancy signals and fault collection
-            .redundancy_enable_i ( redundancy_enable_i        ),
-            .fault_detected_o    ( s_fpnew_fault_detected [j] )
+            .redundancy_enable_i ( '0                         ),
+            .fault_detected_o    ( /*Unused*/                 )
          );
       end
 
@@ -1034,9 +1117,9 @@ endgenerate
        .fpu_gnt_out_i                 ( s_apu_slave_gnt           ),
        .fpu_rvalid_out_i              ( s_apu_slave_rvalid        ),
 
-       .fpnew_req_in_i                ( s_fpnew_slave_req         ),
-       .fpnew_gnt_out_i               ( s_fpnew_slave_gnt         ),
-       .fpnew_rvalid_out_i            ( s_fpnew_slave_rvalid      ),
+       .fpnew_req_in_i                ( s_fpnew_slave_req_copy    ),
+       .fpnew_gnt_out_i               ( s_fpnew_slave_gnt_copy    ),
+       .fpnew_rvalid_out_i            ( s_fpnew_slave_rvalid_copy ),
 
        .fpu_clock_gate_enable_o       ( s_fpu_clock_gate_enable   ),
        .fpnew_clock_gate_enable_o     ( s_fpnew_clock_gate_enable )

@@ -57,8 +57,7 @@ module fpnew_wrapper
   parameter C_FPNEW_IFMTBITS = fpnew_pkg::INT_FORMAT_BITS,
   parameter C_ROUND_BITS     = 3,
   parameter C_FPNEW_OPBITS   = fpnew_pkg::OP_BITS,
-  parameter FP_DIVSQRT       = 0,
-  parameter FP_REDUNDANCY    = fpnew_pkg::NONE
+  parameter FP_DIVSQRT       = 0
 )
 (
    // Clock and Reset
@@ -154,7 +153,7 @@ module fpnew_wrapper
         
         localparam fpnew_pkg::redundancy_features_t REDUNDANCY_FEATURES = '{
             TripplicateRepetition: 1,
-            RedundancyType:        FP_REDUNDANCY
+            RedundancyType:        fpnew_pkg::NONE
         };
 
         //---------------
