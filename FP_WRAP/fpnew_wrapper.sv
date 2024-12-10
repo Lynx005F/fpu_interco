@@ -47,18 +47,20 @@
 module fpnew_wrapper
   import riscv_defines::*;
 #(
-  parameter ID_WIDTH         = 9,
-  parameter NB_ARGS          = 2,
-  parameter OPCODE_WIDTH     = 6,
-  parameter DATA_WIDTH       = 32,
-  parameter FLAGS_IN_WIDTH   = 15,
-  parameter FLAGS_OUT_WIDTH  = 5,
-  parameter C_FPNEW_FMTBITS  = fpnew_pkg::FP_FORMAT_BITS,
-  parameter C_FPNEW_IFMTBITS = fpnew_pkg::INT_FORMAT_BITS,
-  parameter C_ROUND_BITS     = 3,
-  parameter C_FPNEW_OPBITS   = fpnew_pkg::OP_BITS,
-  parameter FP_DIVSQRT       = 0,
-  parameter FP_REDUNDANCY    = fpnew_pkg::NONE
+  parameter ID_WIDTH           = 9,
+  parameter NB_ARGS            = 2,
+  parameter OPCODE_WIDTH       = 6,
+  parameter DATA_WIDTH         = 32,
+  parameter FLAGS_IN_WIDTH     = 15,
+  parameter FLAGS_OUT_WIDTH    = 5,
+  parameter C_FPNEW_FMTBITS    = fpnew_pkg::FP_FORMAT_BITS,
+  parameter C_FPNEW_IFMTBITS   = fpnew_pkg::INT_FORMAT_BITS,
+  parameter C_ROUND_BITS       = 3,
+  parameter C_FPNEW_OPBITS     = fpnew_pkg::OP_BITS,
+  parameter FP_DIVSQRT         = 0,
+  parameter FP_REDUNDANCY      = fpnew_pkg::NONE,
+  parameter FLAG_TAG_BITS      = 2,
+  parameter C_FPNEW_STATUSBITS = 5
 )
 (
    // Clock and Reset
@@ -108,19 +110,23 @@ module fpnew_wrapper
 
         localparam fpnew_pkg::unit_type_t C_DIV = FP_DIVSQRT ? fpnew_pkg::MERGED : fpnew_pkg::DISABLED;
 
-         logic [C_FPNEW_OPBITS-1:0]   fpu_op;
-         logic                        fpu_op_mod;
-         logic                        fpu_vec_op;
+         logic [C_FPNEW_OPBITS-1:0]         fpu_op;
+         logic                              fpu_op_mod;
+         logic                              fpu_vec_op;
 
-         logic [C_FPNEW_FMTBITS-1:0]  dst_fmt;
-         logic [C_FPNEW_FMTBITS-1:0]  src_fmt;
-         logic [C_FPNEW_IFMTBITS-1:0] int_fmt;
-         logic [C_ROUND_BITS-1:0]     fp_rnd_mode;
+         logic [C_FPNEW_FMTBITS-1:0]        dst_fmt;
+         logic [C_FPNEW_FMTBITS-1:0]        src_fmt;
+         logic [C_FPNEW_IFMTBITS-1:0]       int_fmt;
+         logic [C_ROUND_BITS-1:0]           fp_rnd_mode;
+         logic [FLAG_TAG_BITS-1:0]          flag_tag_bits_in, flag_tag_bits_out;
+         logic [ID_WIDTH+FLAG_TAG_BITS-1:0] tag_in, tag_out;
+         logic [C_FPNEW_STATUSBITS-1:0]     fpu_flags;
 
          // assign apu_rID_o = '0;
          assign {fpu_vec_op, fpu_op_mod, fpu_op} = apu_op_i;
-         assign {int_fmt, src_fmt, dst_fmt, fp_rnd_mode} = apu_flags_i;
+         assign {flag_tag_bits_in, int_fmt, src_fmt, dst_fmt, fp_rnd_mode} = apu_flags_i;
 
+         assign tag_in = {flag_tag_bits_in, apu_ID_i};
 
         // -----------
         // FPU Config
@@ -165,7 +171,7 @@ module fpnew_wrapper
           .Implementation           ( FPU_IMPLEMENTATION       ),
           .RedundancyFeatures       ( REDUNDANCY_FEATURES      ),
           .DivSqrtSel               ( DIVISION_UNIT            ),
-          .TagType                  ( logic [ID_WIDTH-1:0]     )
+          .TagType                  ( logic [ID_WIDTH+FLAG_TAG_BITS-1:0] )
         ) i_fpnew (
           .clk_i               ( clk                                  ),
           .rst_ni              ( rst_n                                ),
@@ -179,20 +185,22 @@ module fpnew_wrapper
           .dst_fmt_i           ( fpnew_pkg::fp_format_e'(dst_fmt)     ),
           .int_fmt_i           ( fpnew_pkg::int_format_e'(int_fmt)    ),
           .vectorial_op_i      ( fpu_vec_op                           ),
-          .tag_i               ( apu_ID_i                             ),
+          .tag_i               ( tag_in                               ),
           .simd_mask_i         ( '1                                   ),
           .in_valid_i          ( apu_req_i                            ),
           .in_ready_o          ( apu_gnt_o                            ),
           .flush_i             ( 1'b0                                 ),
           .result_o            ( apu_rdata_o                          ),
-          .status_o            ( apu_rflags_o                         ),
-          .tag_o               ( apu_rID_o                            ),
+          .status_o            ( fpu_flags                            ),
+          .tag_o               ( tag_out                              ),
           .out_valid_o         ( apu_rvalid_o                         ),
           .out_ready_i         ( 1'b1                                 ),
           .busy_o              ( /* unused */                         ),
           .fault_detected_o    ( fault_detected_o                     )
         );
 
+        assign {flag_tag_bits_out, apu_rID_o} = tag_out;
+        assign apu_rflags_o = {flag_tag_bits_out, fpu_flags};
 
   `endif
 endmodule // fpnew_wrapper
