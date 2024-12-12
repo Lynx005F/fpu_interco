@@ -65,6 +65,7 @@ module shared_fpu_cluster
    parameter FPNEW_OPCODE_WIDTH   = 6,
    parameter FPNEW_DSFLAGS_CPU    = 15,
    parameter FPNEW_USFLAGS_CPU    = 5,
+   parameter FLAG_TAG_BITS        = 2,
 
    parameter APUTYPE_ID       = 1, // ID is 5 in MrWolf
    parameter FPNEWTYPE_ID     = 0,
@@ -982,7 +983,8 @@ endgenerate
            .C_ROUND_BITS     ( C_ROUND_BITS        ),
            .C_FPNEW_OPBITS   ( C_FPNEW_OPBITS      ),
            .FP_DIVSQRT       ( 0                   ),
-           .FP_REDUNDANCY    ( FPNEW_REDUNDANCY    )
+           .FP_REDUNDANCY    ( FPNEW_REDUNDANCY    ),
+           .FLAG_TAG_BITS    ( FLAG_TAG_BITS       )
          )
          i_fpnew_wrapper
          (
