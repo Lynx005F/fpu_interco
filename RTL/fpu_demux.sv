@@ -107,190 +107,50 @@ module fpu_demux
    output logic [FPNEW_OPCODE_WIDTH-1:0]                 fpnew_op_o,
    output logic [FPNEW_DSFLAGS_CPU-1:0]                  fpnew_flags_o,
    // response channel
-   output logic                                          fpnew_rready_o,
-   input  logic                                          fpnew_rvalid_i,
-   input  logic [DATA_WIDTH-1:0]                         fpnew_rdata_i,
-   input  logic [FPNEW_USFLAGS_CPU-1:0]                  fpnew_rflags_i
-);
+    
+    // Non-handshake stuff gets wired straight through
+    assign fpnew_operands_o = core_slave_operands_i[NB_FPNEW_ARGS-1:0];
+    assign fpnew_op_o       = core_slave_op_i[FPNEW_OPCODE_WIDTH-1:0];
+    assign fpnew_flags_o    = core_slave_flags_i[FPNEW_DSFLAGS_CPU-1:0];
 
+    assign apu_operands_o   = core_slave_operands_i[NB_APU_ARGS-1:0];
+    assign apu_op_o         = core_slave_op_i[APU_OPCODE_WIDTH-1:0];
+    assign apu_flags_o      = core_slave_flags_i[APU_DSFLAGS_CPU-1:0];
 
-    enum logic [1:0] {IDLE, WAIT_APU_RVALID, FPNEW_INFLIGHT, ERROR } CS, NS;
-    logic [1:0] curr_op_q, curr_op_n;
-   
+    // Input Handshake according to select signal
+    always_comb begin
+        apu_req_o        = 1'b0;
+        fpnew_req_o      = 1'b0;     
+        core_slave_gnt_o = 1'b0;    
 
-    always_ff @(posedge clk or negedge rst_n)
-    begin
-        if(~rst_n)
-        begin
-           CS <= IDLE;
-           curr_op_q <='0;           
-        end
-        else
-        begin
-           CS <= NS;
-           curr_op_q <= curr_op_n;           
-        end
-    end
-
-
-
-    always_comb
-    begin
-        apu_req_o        = '0;
-        apu_operands_o   = core_slave_operands_i[NB_APU_ARGS-1:0];
-        apu_op_o         = core_slave_op_i[APU_OPCODE_WIDTH-1:0];
-        apu_flags_o      = core_slave_flags_i[APU_DSFLAGS_CPU-1:0];
-        apu_rready_o     = '0;
-
-        fpnew_req_o      = '0;
-        fpnew_operands_o = core_slave_operands_i[NB_FPNEW_ARGS-1:0];
-        fpnew_op_o       = core_slave_op_i[FPNEW_OPCODE_WIDTH-1:0];
-        fpnew_flags_o    = core_slave_flags_i[FPNEW_DSFLAGS_CPU-1:0];
-        fpnew_rready_o   = '0;
-
-        core_slave_rvalid_o  = '0;
-        core_slave_rdata_o   = '0;
-        core_slave_rflags_o  = '0;
-        core_slave_gnt_o     = 1'b0;
-
-        NS = CS;
-        curr_op_n = curr_op_q;        
-       
-        case(CS)
-
-            IDLE:
-            begin
-                if(core_slave_req_i)
-                begin
-                    case(core_slave_type_i)
-                    APU_ID:
-                    begin
-                        apu_req_o         = 1'b1;
-                        core_slave_gnt_o  = apu_gnt_i;
-
-                        apu_rready_o = core_slave_rready_i;
-
-                        core_slave_rvalid_o  = apu_rvalid_i;
-                        core_slave_rdata_o   = apu_rdata_i;
-                        core_slave_rflags_o  = apu_rflags_i;                         
-
-                        case({apu_rvalid_i,apu_gnt_i})
-                            2'b01: NS = WAIT_APU_RVALID;
-                            2'b11: NS = IDLE;
-                            2'b00: NS = IDLE;
-                            2'b10: NS = IDLE;
-                        endcase // {apu_rvalid_i,apu_gnt_i} 
-                    end
-
-
-                    FPNEW_ID:
-                    begin
-                        fpnew_req_o       = 1'b1;
-                        core_slave_gnt_o  = fpnew_gnt_i;
-                        fpnew_rready_o    = core_slave_rready_i;
-
-                        core_slave_rvalid_o  = fpnew_rvalid_i;
-                        core_slave_rdata_o   = fpnew_rdata_i;
-                        core_slave_rflags_o  = fpnew_rflags_i;                        
-
-                        case({fpnew_rvalid_i,fpnew_gnt_i})
-                            2'b01: begin
-                               NS = FPNEW_INFLIGHT;
-                               curr_op_n = 2'h1;
-                            end
-                            2'b11: NS = IDLE;
-                            2'b00: NS = IDLE;
-                            2'b10: NS = IDLE;
-                        endcase // {apu_rvalid_i,apu_gnt_i}
-
-                    end
-
-                    default:
-                    begin
-                        NS = ERROR;
-                        core_slave_gnt_o = 1'b1;
-                    end
-
-                    endcase // core_slave_type_i
-
-                end
-                else // no request
-                begin
-                    NS = IDLE;
-                end
-
+        case (core_slave_type_i)
+            APU_ID: begin
+                apu_req_o         = core_slave_req_i;
+                core_slave_gnt_o  = apu_gnt_i;
             end
 
-
-
-
-            WAIT_APU_RVALID:
-            begin
-                core_slave_rvalid_o  = apu_rvalid_i;
-                core_slave_rdata_o   = apu_rdata_i;
-                core_slave_rflags_o  = apu_rflags_i;  
-
-                if(apu_rvalid_i)
-                begin
-                    NS = IDLE;
-                end
-                else
-                begin
-                    NS = WAIT_APU_RVALID;
-                end
-
-
-            end
-
-          FPNEW_INFLIGHT:
-              begin
-
-                fpnew_req_o       = (core_slave_req_i && !core_slave_type_i) ? 1'b1 : 1'b0;
+            FPNEW_ID: begin
+                fpnew_req_o       = core_slave_req_i;
                 core_slave_gnt_o  = fpnew_gnt_i;
-                fpnew_rready_o    = core_slave_rready_i;
-
-                core_slave_rvalid_o  = fpnew_rvalid_i;
-                core_slave_rdata_o   = fpnew_rdata_i;
-                core_slave_rflags_o  = fpnew_rflags_i;  
-
-                if( fpnew_rvalid_i && !fpnew_req_o && (curr_op_q == 1) )
-                begin
-                    NS = IDLE;
-                    curr_op_n = '0;                                          
-                end
-                else
-                begin
-                    NS = FPNEW_INFLIGHT;
-                    if (fpnew_rvalid_i) begin
-                      if (fpnew_gnt_i && fpnew_req_o)
-                        curr_op_n = curr_op_q;
-                      else 
-                        curr_op_n = curr_op_q - 1;                       
-                    end
-                    else if(fpnew_gnt_i && fpnew_req_o)
-                        curr_op_n = curr_op_q + 1;                   
-                end
-
-
             end
-
-
-
-
-            ERROR:
-            begin
-                core_slave_rvalid_o  = 1'b1;
-                core_slave_rdata_o   = 32'hBAD_F7_ACC;
-                core_slave_rflags_o  = '0;  
-                NS                   = IDLE;
-            end
-
-        endcase // CS
-
+        endcase
     end
 
+    // Output Handshake according to valid, prioritizing fpu inputs
+    always_comb begin
+        core_slave_rvalid_o   = fpnew_rvalid_i | apu_rvalid_i;
+        fpnew_rready_o = 1'b0;
+        apu_rready_o = 1'b0;
 
-
-
+        if (fpnew_rvalid_i) begin
+            fpnew_rready_o       = core_slave_rready_i;
+            core_slave_rdata_o   = fpnew_rdata_i;
+            core_slave_rflags_o  = fpnew_rflags_i;  
+        end else begin
+            apu_rready_o         = core_slave_rready_i;
+            core_slave_rdata_o   = apu_rdata_i;
+            core_slave_rflags_o  = apu_rflags_i;
+        end
+    end
 
 endmodule
