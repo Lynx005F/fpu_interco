@@ -153,7 +153,7 @@ module fpnew_wrapper
                        '{default: fpnew_pkg::PARALLEL}, // NONCOMP
                        '{default: fpnew_pkg::MERGED},  // CONV
                        '{default: fpnew_pkg::DISABLED}}, // SDOTP
-          PipeConfig: fpnew_pkg::BEFORE
+          PipeConfig: fpnew_pkg::DISTRIBUTED
         };
 
         localparam fpnew_pkg::divsqrt_unit_t DIVISION_UNIT = fpnew_pkg::THMULTI;
